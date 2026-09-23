@@ -2220,7 +2220,8 @@ function drawWeaponHip(alpha){
  var swy=(sway3*5+sway2*3)*swm+abs(sin(S.t*3.1))*bob*9*swm;
  var rk=S.recoil;
  var isDMR=S.w==='dmr';
- var hipX=W*(isDMR?0.83:0.85), hipY=H*(isDMR?0.86:0.85);
+ var sc0=(isDMR?0.50:0.52)*base;
+ var hipX=isDMR? W*0.5+360*sc0 : W*0.85, hipY=isDMR? H*0.56+235*sc0 : H*0.78;
  var midX=W*0.62, midY=H*0.74;
  var ax=lerp(hipX,midX,a)+swx, ay=lerp(hipY,midY,a)+swy;
  var rot=lerp(isDMR?0.02:0.04, -0.08, a);
