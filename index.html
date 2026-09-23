@@ -1674,7 +1674,7 @@ var DEF_KEYS={lookL:'ArrowLeft',lookR:'ArrowRight',lookU:'ArrowUp',lookD:'ArrowD
  fire:'Space',ads:'ShiftLeft',swap:'KeyQ',reload:'KeyR',breath:'KeyB',pause:'KeyP'};
 var CTRL={
  keys:{}, sens:1.0, invertY:false, padSize:'M',
- pad:{open:false,x:null,y:null},
+ pad:{open:('ontouchstart' in window)||navigator.maxTouchPoints>0,x:null,y:null},
  reset:function(){ for(var k in DEF_KEYS) this.keys[k]=DEF_KEYS[k];
   this.sens=1.0; this.invertY=false; this.padSize='M'; }
 };
