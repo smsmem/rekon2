@@ -1989,7 +1989,7 @@ function fireShot(){
  S.tPitch=cl(S.tPitch+(W2.key==='dmr'?0.030:0.0125)+rnd()*0.009,-0.40,0.42);
  S.tYaw=cl(S.tYaw+(rnd()-0.5)*(W2.key==='dmr'?0.020:0.013),-0.85,0.85);
  casings.push({x:0,y:0,vx:0,vy:0,rot:0,vr:0,life:1.1,init:false,big:W2.key==='dmr'});
- if(W2.key==='dmr'){ S.white=1; S.bolt=W2.bolt; snd('boom'); boltSnd(); S.holding=false; }
+ if(W2.key==='dmr'){ S.white=0.45; S.bolt=W2.bolt; snd('boom'); boltSnd(); S.holding=false; }
  else snd('shot');
  if(A.a<=4&&A.a>0)snd('tick');
 
@@ -2222,7 +2222,7 @@ function drawWeaponHip(alpha){
  var rk=S.recoil;
  var isDMR=S.w==='dmr';
  var sc0=(isDMR?0.50:0.52)*base;
- var hipX=isDMR? W*0.52+360*sc0 : W*0.85, hipY=isDMR? H*0.50+235*sc0 : H*0.78;
+ var hipX=isDMR? W*0.58+360*sc0 : W*0.85, hipY=isDMR? H*0.66+235*sc0 : H*0.78;
  var midX=W*0.62, midY=H*0.74;
  var ax=lerp(hipX,midX,a)+swx, ay=lerp(hipY,midY,a)+swy;
  var rot=lerp(isDMR?0.02:0.04, -0.08, a);
@@ -2259,9 +2259,9 @@ function drawWeaponHip(alpha){
  g.globalAlpha=alpha;
  g.translate(ax,ay);g.rotate(rot);g.scale(sc,sc);
  var key=isDMR?'vm_dmr_hip':'vm_ar_hip', f=ASSETS[key], im=SPR.img[key];
- var k=isDMR? 620/f.h : 800/f.w;
+ var k=isDMR? 540/f.h : 800/f.w;
  if(im&&im.complete&&im.naturalWidth) g.drawImage(im, MZX-f.mx*k, MZY-f.my*k, f.w*k, f.h*k);
- if(flash>0.02&&alpha>0.5) drawFlash(MZX, MZY, sc);
+ if(flash>0.02&&alpha>0.5){ g.save(); if(isDMR){ g.translate(MZX,MZY); g.scale(1.5,1.5); g.translate(-MZX,-MZY); } drawFlash(MZX, MZY, sc); g.restore(); }
  drawSmoke(MZX, MZY, sc);
  g.restore();
 
@@ -2283,11 +2283,13 @@ function drawADSAR(alpha){
  g.restore();
 }
 function drawFlash(mx,my,sc){
- var f=flash;
+ var f=Math.min(1,flash);
  g.save();
- g.globalCompositeOperation='lighter';
  g.translate(mx,my);
  var sz=(120+((flashSeed*37)%40))*f;
+ var hg=g.createRadialGradient(0,0,0,0,0,sz*1.5); hg.addColorStop(0,'rgba(255,220,140,'+(0.95*f).toFixed(2)+')'); hg.addColorStop(0.35,'rgba(255,140,40,'+(0.75*f).toFixed(2)+')'); hg.addColorStop(1,'rgba(255,90,20,0)');
+ g.fillStyle=hg; g.beginPath(); g.arc(0,0,sz*1.5,0,6.2832); g.fill();
+ g.globalCompositeOperation='lighter';
  var n=7,i,ang,r,pts=[];
  for(i=0;i<n*2;i++){
   ang=i*PI/n+flashSeed;
@@ -2810,7 +2812,7 @@ function update(dt){
  S.recoil+=S.recoilV*dt;
  S.shake=Math.max(0,S.shake-dt*3.6);
  S.spread=Math.max(0,S.spread-dt*1.6);
- flash=Math.max(0,flash-dt*13);
+ flash=Math.max(0,flash-dt*(S.w==='dmr'?6:13));
  S.white=Math.max(0,S.white-dt*2.6);
  S.redEdge=Math.max(0,S.redEdge-dt*1.6);
  S.hitRing=Math.max(0,S.hitRing-dt);
@@ -3148,7 +3150,7 @@ window.__sim=function(N,mode){
  HEADLESS=was; S.running=false; S.over=false;
  return {mode:mode,n:N,rtp:+(sum/N).toFixed(4),hist:hist};
 };
-window.__rag=RAG; window.__spr=SPR; window.__mk=mkTarget; window.__room=function(v){applyRoom(v);}; window.__kill=killTarget; window.__BTN=BTN; window.__AM=AM;
+window.__rag=RAG; window.__spr=SPR; window.__mk=mkTarget; window.__room=function(v){applyRoom(v);}; window.__kill=killTarget; window.__BTN=BTN; window.__AM=AM; window.__setFlash=function(v){flash=v;flashSeed=3;}; window.__getFlash=function(){return flash;};
 window.__S=S;
 window.__fps=function(){var a=frames.slice().sort(function(x,y){return x-y;});
  return {n:a.length,median:+(a[(a.length/2)|0]||0).toFixed(2),max:+(a[a.length-1]||0).toFixed(2)};};
