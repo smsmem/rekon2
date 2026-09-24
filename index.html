@@ -231,8 +231,8 @@ function sprLoad(){
   SPR.img[k]=[]; SPR.sil[k]=[]; SPR.tint[k]=[];
   ASSETS[k].forEach(function(f,j){
    SPR.img[k][j]=mk(f.d,function(im){
-    if(k==='drone')return;
     SPR.sil[k][j]=sprMakeSil(im,'#ffffff');
+    if(k==='drone')return;
     SPR.tint[k][j]=tints[k].map(function(c){return sprMakeSil(im,c);});
    });
   });
@@ -862,20 +862,65 @@ function drawRoom(){
  for(i=0;i<covers.length;i++) drawCoverPiece(covers[i]);
  drawDrone();
 }
+/* the recon drone: a small far bonus target. DMR drops it in one, the AR needs three. */
+var DRN={hp:3,dead:0,fl:0,resp:0,enter:0,gone:false,rect:null,kills:0,fx:0};
+DRN.reset=function(){this.hp=3;this.dead=0;this.fl=0;this.resp=0;this.enter=0;this.gone=false;this.rect=null;this.kills=0;this.fx=0;};
+DRN.hitTest=function(x,y){var r=this.rect; return !!(r&&!this.gone&&this.dead<=0&&this.enter<=0&&x>=r.x&&x<=r.x+r.w&&y>=r.y&&y<=r.y+r.h);};
+DRN.tick=function(dt){
+ if(this.fl>0)this.fl-=dt;
+ if(this.enter>0)this.enter-=dt;
+ if(this.dead>0){ this.dead-=dt; if(this.dead<=0){ this.gone=true; this.resp=14; this.rect=null; } }
+ else if(this.gone){ this.resp-=dt; if(this.resp<=0){ this.gone=false; this.hp=3; this.enter=0.7; this.fx=0; } }
+};
+function droneHit(dmg){
+ var r=DRN.rect; if(!r)return;
+ RAG.idle=0;
+ var cx=r.x+r.w/2, cy=r.y+r.h/2;
+ DRN.hp-=dmg; DRN.fl=0.12;
+ for(var d=0;d<8;d++) sparks.push({x:cx+rr_(-6,6),y:cy+rr_(-6,6),vx:rr_(-200,200),vy:rr_(-220,60),life:rr_(0.25,0.5),c:'#bff0ff'});
+ if(DRN.hp>0){ pops.push({t:0,x:cx,y:cy,gold:true,seed:rnd()*9,word:'HIT',small:true}); marks.push({t:0,kind:'hit'}); snd('ric'); S.hitRing=0.10; S.hitRingBad=0; return; }
+ DRN.dead=1.1; DRN.kills++;
+ var b=Math.max(0.3,Math.round(RAG.goldBonus(2)*0.5*10)/10);
+ S.bank+=b;
+ pops.push({t:0,x:cx,y:cy,gold:true,seed:rnd()*9,word:'DRONE'});
+ floats.push({x:cx,y:cy+Math.max(H*0.06,W*0.08),txt:'−'+b.toFixed(1)+'s',c:C.gold,life:1.15,big:true});
+ marks.push({t:0,kind:'hit'}); snd('hit'); S.hitRing=0.12; S.hitRingBad=0; S.hitStop=0.04;
+ addStamp('DRONE DOWN','#2fd3c4',0.8);
+ S.streak++; S.streakT=1.2;
+ DAILY.hit('gold',{w:S.w});
+ RAG.note('drone','bank+'+b);
+}
 function drawDrone(){
- if(!ASSETS.drone||!SPR.img.drone)return;
+ if(!ASSETS.drone||!SPR.img.drone||DRN.gone){DRN.rect=null;return;}
  var t=S.t;
  var x=sin(t*0.33)*2.1, y=CEIL-0.80+sin(t*1.7)*0.05, z=BACKZ-2.4+cos(t*0.21)*0.7;
- var c=cam([x,y,z]); if(c[2]<NEAR)return;
+ var dk=0;
+ if(DRN.dead>0){ dk=1.1-DRN.dead; y-=dk*dk*2.4; x+=dk*0.5; }
+ var c=cam([x,y,z]); if(c[2]<NEAR){DRN.rect=null;return;}
  var p=pr(c), sz=FOC/c[2];
  var j=((Math.floor(t*1.4)%12)+12)%12;
- var f=ASSETS.drone[j], im=SPR.img.drone[j]; if(!im||!im.complete||!im.naturalWidth)return;
- var u=0.95*sz/f.w;
+ var f=ASSETS.drone[j], im=SPR.img.drone[j]; if(!im||!im.complete||!im.naturalWidth){DRN.rect=null;return;}
+ var u=0.95*sz/f.w, dw=f.w*u, dh=f.h*u;
  g.save();
- g.drawImage(im,p[0]-f.w*u/2,p[1]-f.h*u/2,f.w*u,f.h*u);
- /* nav light */
- if(Math.floor(t*2)%2===0){ g.fillStyle='#ff3b30'; g.beginPath(); g.arc(p[0]+f.w*u*0.30,p[1]+f.h*u*0.05,Math.max(1.2,sz*0.03),0,6.2832); g.fill(); }
+ if(DRN.enter>0) g.globalAlpha=cl(1-DRN.enter/0.7,0,1);
+ g.translate(p[0],p[1]);
+ if(DRN.dead>0) g.rotate(dk*2.4*(x<0?-1:1));
+ else if(DRN.fl>0) g.rotate(sin(DRN.fl*70)*0.14);
+ g.drawImage(im,-dw/2,-dh/2,dw,dh);
+ if(DRN.fl>0&&SPR.sil.drone&&SPR.sil.drone[j]){ g.globalAlpha=cl(DRN.fl/0.06,0,1)*0.9; g.globalCompositeOperation='lighter'; g.drawImage(SPR.sil.drone[j],-dw/2,-dh/2,dw,dh); g.globalCompositeOperation='source-over'; }
  g.restore();
+ if(DRN.dead<=0){
+  /* nav light */
+  if(Math.floor(t*2)%2===0){ g.fillStyle='#ff3b30'; g.beginPath(); g.arc(p[0]+dw*0.30,p[1]+dh*0.05,Math.max(1.2,sz*0.03),0,6.2832); g.fill(); }
+  /* gold marker: it is a target */
+  var my=p[1]-dh*0.62-Math.max(6,sz*0.05)+sin(t*4)*2, mw=Math.max(5,sz*0.045);
+  fp([[p[0]-mw,my-mw*0.7],[p[0],my-mw*1.5],[p[0]+mw,my-mw*0.7],[p[0]+mw,my],[p[0],my-mw*0.7],[p[0]-mw,my]],C.gold,C.ink,INKR*1.2);
+  if(DRN.hp<3){ var pw=Math.max(4,sz*0.05); for(var q=0;q<3;q++){ g.fillStyle=q<DRN.hp?C.gold:'rgba(20,16,24,0.7)'; g.fillRect(p[0]-pw*1.7+q*pw*1.2,p[1]+dh*0.62,pw,Math.max(2,pw*0.45)); } }
+ }else if(!HEADLESS&&rnd()<0.7){
+  sparks.push({x:p[0]+rr_(-dw*0.2,dw*0.2),y:p[1],vx:rr_(-30,30),vy:rr_(-90,-30),life:rr_(0.35,0.7),c:'#9a9aa2',dust:1});
+ }
+ /* forgiving hitbox: the drone is small */
+ DRN.rect={x:p[0]-dw*0.62,y:p[1]-dh*0.70,w:dw*1.24,h:dh*1.4};
 }
 
 function drawDoor(){
@@ -1036,7 +1081,7 @@ function mkTarget(opt){
  if(kind==='decoy'){gold=false;}
  var t={x:opt.x!=null?opt.x:placeX(z),z:z,lane:lane,kind:kind,req:req,gold:gold,
   p:0,st:'rise',t:opt.delay||0,up:upTime(lane),wait:0,
-  dead:0,fl:0,hp:kind==='boss'?3:1,bob:rr_(0,6.28),
+  dead:0,fl:0,hp:kind==='boss'?3:1,arm:(lane===2&&kind==='op')?2:1,bob:rr_(0,6.28),
   cov:0.92, chip:0,
   sh: (kind==='op'&&rnd()<RAG.shieldP)? {o:-1.5,v:rr_(0.55,0.95)} : null};
  t.chip = gold? RAG.goldBonus(lane) : RAG.redCost();
@@ -1078,7 +1123,7 @@ function startRound(mode,amount){
  S.tableKey=MODES[mode].table;
  S.roomsTotal=MODES[mode].rooms;
  RAG.reset(S.tableKey);
- S.clock=0;S.real=0;S.bank=0;S.over=false;S.running=true;S.roomIdx=0;S.paused=false;
+ S.clock=0;S.real=0;S.bank=0;S.over=false;S.running=true;S.roomIdx=0;S.paused=false; DRN.reset();
  S.lastShot=-9;S.killT=0;S.rein=0;S.reds=0;
  S.rescued=false;S.elim=false;S.hostageHits=0;S.bossHP=3;
  S.streak=0;S.streakT=0;S.hint=3.0;S.dolly=0;S.lunge=0;
@@ -1255,14 +1300,14 @@ function killTarget(t,silent){
  if(t.kind==='boss'){
   t.hp--; S.bossHP=t.hp;
   if(t.hp>0){
-   t.st='duck'; t.wait=rr_(0.5,0.9)/Math.max(0.6,RAG.expo); t.fl=0.06;
+   t.st='duck'; t.wait=rr_(0.5,0.9)/Math.max(0.6,RAG.expo); t.fl=0.10;
    noteKill(silent);
    if(!silent)snd('hit');
    if(!HEADLESS){S.hitRing=0.12;S.hitRingBad=0;if(!silent)S.hitStop=0.04;}
    return;
   }
  }
- t.dead=0.55;t.fl=0.055;
+ t.dead=0.55;t.fl=t.lane===2?0.16:0.09;
  if(t.req)noteKill(silent);
  if(!HEADLESS&&!silent){S.hitStop=0.04;}
  if(t.kind==='boss'){ S.bossDead=true; S.reqTotal=S.reqDown; RAG.note('boss','down t='+S.clock.toFixed(1)); roomClear(); return; }
@@ -1288,7 +1333,21 @@ function hitEffects(t,cxp,cyp){
  for(var d=0;d<7;d++) sparks.push({x:cxp+rr_(-8,8),y:cyp+rr_(-8,8),
   vx:rr_(-170,170),vy:rr_(-210,-40),life:rr_(0.30,0.60),c:t.gold?'#ffe9a8':'#ffb0a0',dust:1});
 }
-function resolveHit(best,cxp,cyp){
+/* where the target is on screen right now (chest height, never below its cover line) */
+function tgtScreen(t,fx,fy){
+ var r=targetRect(t); if(!r)return [fx,fy];
+ var y=r.baseY-r.hh*0.74; if(y>r.deskTop-6)y=r.deskTop-6; if(y<r.y)y=r.y;
+ return [r.cx,y];
+}
+function grazeEffects(t,cxp,cyp){
+ t.fl=0.11; t.flinch=0.32;
+ if(HEADLESS)return;
+ pops.push({t:0,x:cxp,y:cyp,gold:true,seed:rnd()*9,word:'HIT',small:true});
+ S.hitRing=0.10; S.hitRingBad=0;
+ marks.push({t:0,kind:'hit'}); snd('ric');
+ for(var d=0;d<6;d++) sparks.push({x:cxp+rr_(-6,6),y:cyp+rr_(-6,6),vx:rr_(-190,190),vy:rr_(-230,-30),life:rr_(0.25,0.5),c:'#ffe9a8'});
+}
+function resolveHit(best,cxp,cyp,dmg){
  if(!best)return;
  RAG.idle=0;
  if(best.sh&&abs(best.sh.o)<0.42){
@@ -1310,6 +1369,7 @@ function resolveHit(best,cxp,cyp){
   RAG.note('hostage','+6s');
   return;
  }
+ if(dmg!=null&&best.kind!=='boss'&&best.arm>dmg){ best.arm-=dmg; grazeEffects(best,cxp,cyp); RAG.note('graze','lane'+best.lane); return; }
  hitEffects(best,cxp,cyp);
  if(best.gold){
   var b=best.chip;
@@ -1361,7 +1421,7 @@ function drawOperator(t,s){
  if(key==='goon'){ if(t.dead>0&&t.dead>0.30) key='enemy_hit'; else if(t.dead<=0&&t.p<0.42&&t.st!=='rise') key='enemy_duck'; }
  var j=sprFrame(key,t), hgt=CHAR_H[key], ink=INK/s;
  if(key==='enemy_duck'||key==='hostage_kneel'){ /* crouched poses sit lower: keep the head where the standing head would be behind cover */ }
- var fl=(k==='hostage'&&t.flinch>0)? sin(t.flinch*40)*0.05:0;
+ var fl=(t.flinch>0)? sin(t.flinch*40)*(k==='hostage'?0.05:0.035):0;
  g.save(); g.translate(fl,0);
  /* team-colour rim: gold = target, red = decoy / HVT, teal = hostage */
  var ti = key==='goon'? (t.gold?0:1) : 0;
@@ -1506,6 +1566,7 @@ function drawPops(){
   var p=pops[i],k=cl(p.t/0.46,0,1);
   var col=p.gold?C.gold:C.crim;
   g.save();
+  if(p.small){ g.translate(p.x,p.y); g.scale(0.55,0.55); g.translate(-p.x,-p.y); }
   g.globalAlpha=cl(1-k*k,0,1);
   g.strokeStyle=C.ink;g.lineWidth=INKR*(6-k*5);
   g.beginPath();g.arc(p.x,p.y,12+k*56,0,6.2832);g.stroke();
@@ -2000,20 +2061,17 @@ function fireShot(){
   var b=targetRect(t); if(!b)continue;
   if(cxp>=b.x&&cxp<=b.x+b.w&&cyp>=b.y&&cyp<=b.y+b.h){if(t.z<bz){bz=t.z;best=t;}}
  }
- /* far lane is DMR-favoured: fast AR shots at far targets scatter */
- if(best&&best.lane===2&&W2.key==='ar'&&(S.spread>0.35||S.ads<0.6)){
-  if(rnd()<cl(0.25+S.spread*0.55,0,0.8)){
-   if(!HEADLESS){sparks.push({x:cxp+rr_(-20,20),y:cyp+rr_(-20,20),vx:rr_(-120,120),vy:rr_(-160,-20),life:0.3,c:'#cdbfae',dust:1});}
-   return;
-  }
- }
- if(best&&W2.key==='dmr'&&best.lane===2){
-  var tof=0.22;
+ /* damage model: DMR and a steady ADS AR round drop anything; a sprayed / hip AR round at the far lane only grazes (armour 2) */
+ var dmg=3;
+ if(best&&W2.key==='ar'&&best.lane===2&&(S.spread>0.35||S.ads<0.6)) dmg=1;
+ if(!best&&DRN.hitTest(cxp,cyp)){ droneHit(W2.key==='dmr'?3:1); return; }
+ if(best&&best.lane===2){
+  var tof=W2.key==='dmr'?0.22:0.12;
   tracers.push({t:0,tof:tof});
-  pend.push({t:tof,tgt:best,x:cxp,y:cyp});
+  pend.push({t:tof,tgt:best,x:cxp,y:cyp,dmg:dmg,live:true});
   return;
  }
- resolveHit(best,cxp,cyp);
+ resolveHit(best,cxp,cyp,dmg);
 }
 
 /* WEAPON VIEWMODELS */
@@ -2850,8 +2908,9 @@ function update(dt){
  for(i=tracers.length-1;i>=0;i--){tracers[i].t+=dt;if(tracers[i].t>tracers[i].tof)tracers.splice(i,1);}
  for(i=pend.length-1;i>=0;i--){
   pend[i].t-=dt;
-  if(pend[i].t<=0){ resolveHit(pend[i].tgt,pend[i].x,pend[i].y); pend.splice(i,1); }
+  if(pend[i].t<=0){ var pp=pend[i].live? tgtScreen(pend[i].tgt,pend[i].x,pend[i].y) : [pend[i].x,pend[i].y]; resolveHit(pend[i].tgt,pp[0],pp[1],pend[i].dmg); pend.splice(i,1); }
  }
+ DRN.tick(dt);
  for(i=targets.length-1;i>=0;i--){
   var t=targets[i];
   t.t+=dt;
@@ -3150,7 +3209,7 @@ window.__sim=function(N,mode){
  HEADLESS=was; S.running=false; S.over=false;
  return {mode:mode,n:N,rtp:+(sum/N).toFixed(4),hist:hist};
 };
-window.__rag=RAG; window.__spr=SPR; window.__mk=mkTarget; window.__room=function(v){applyRoom(v);}; window.__kill=killTarget; window.__BTN=BTN; window.__AM=AM; window.__setFlash=function(v){flash=v;flashSeed=3;}; window.__getFlash=function(){return flash;};
+window.__rag=RAG; window.__spr=SPR; window.__mk=mkTarget; window.__room=function(v){applyRoom(v);}; window.__kill=killTarget; window.__DRN=DRN; window.__droneHit=droneHit; window.__fire=fireShot; window.__hit=resolveHit; window.__BTN=BTN; window.__AM=AM; window.__setFlash=function(v){flash=v;flashSeed=3;}; window.__getFlash=function(){return flash;};
 window.__S=S;
 window.__fps=function(){var a=frames.slice().sort(function(x,y){return x-y;});
  return {n:a.length,median:+(a[(a.length/2)|0]||0).toFixed(2),max:+(a[a.length-1]||0).toFixed(2)};};
